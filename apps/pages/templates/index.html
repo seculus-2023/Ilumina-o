@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load static %}
+
+
+{% block title %}Index{% endblock %}
+
+{% block content %}
+    <div class="container text-center">
+        <h1>Bem-vindo!</h1>
+        <p>Você será redirecionado para a página de login em 5 segundos...</p>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        // Aguarda 5 segundos (5000 milissegundos) e redireciona para login.html
+        setTimeout(function() {
+            window.location.href = "{% url 'login' %}";
+        }, 2000);
+    </script>
+{% endblock %}

@@ -1,0 +1,908 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mapa Interativo - Todos os Postes{% endblock %}
+
+{% block content %}
+
+<div class="fullscreen-map-container">
+    <!-- Painel de Controles Avançados -->
+    <div class="map-controls">
+        <div class="control-group">
+            <button class="control-btn" id="zoom-in" title="Zoom In">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+            <button class="control-btn" id="zoom-out" title="Zoom Out">
+                <i class="bi bi-dash-lg"></i>
+            </button>
+        </div>
+        
+        <div class="control-group">
+            <button class="control-btn" id="locate-me" title="Minha Localização">
+                <i class="bi bi-geo-alt-fill"></i>
+            </button>
+            <button class="control-btn" id="center-all" title="Ver Todos os Postes">
+                <i class="bi bi-arrows-fullscreen"></i>
+            </button>
+        </div>
+        
+        <div class="control-group">
+            <button class="control-btn" id="toggle-clusters" title="Agrupar Marcadores">
+                <i class="bi bi-collection"></i>
+            </button>
+            <button class="control-btn" id="toggle-fullscreen" title="Tela Cheia">
+                <i class="bi bi-fullscreen"></i>
+            </button>
+        </div>
+        
+        <div class="control-group">
+            <button class="control-btn" id="toggle-layers" title="Camadas do Mapa">
+                <i class="bi bi-layers"></i>
+            </button>
+            <button class="control-btn" id="toggle-info" title="Informações">
+                <i class="bi bi-info-circle"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Painel de Informações -->
+    <div class="info-panel" id="infoPanel" style="display: none;">
+        <div class="info-content">
+            <h5><i class="bi bi-info-circle me-2"></i>Estatísticas</h5>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-number" id="totalPostes">0</span>
+                    <span class="stat-label">Total de Postes</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" id="postesVisiveis">0</span>
+                    <span class="stat-label">Visíveis no Mapa</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" id="areaCobertura">0</span>
+                    <span class="stat-label">Área (km²)</span>
+                </div>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="toggleInfoPanel()">
+                <i class="bi bi-x"></i> Fechar
+            </button>
+        </div>
+    </div>
+
+    <!-- Painel de Camadas -->
+    <div class="layers-panel" id="layersPanel" style="display: none;">
+        <div class="layers-content">
+            <h6><i class="bi bi-layers me-2"></i>Camadas do Mapa</h6>
+            <div class="layer-options">
+                <label class="layer-option">
+                    <input type="radio" name="baseLayer" value="osm" checked>
+                    <span>OpenStreetMap</span>
+                </label>
+                <label class="layer-option">
+                    <input type="radio" name="baseLayer" value="satellite">
+                    <span>Satélite</span>
+                </label>
+                <label class="layer-option">
+                    <input type="radio" name="baseLayer" value="terrain">
+                    <span>Terreno</span>
+                </label>
+            </div>
+            <hr>
+            <div class="overlay-options">
+                <label class="overlay-option">
+                    <input type="checkbox" id="showDefectivePoles" checked>
+                    <span>Postes com Defeito</span>
+                </label>
+                <label class="overlay-option">
+                    <input type="checkbox" id="showNormalPoles" checked>
+                    <span>Postes Normais</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <h5>Carregando Mapa</h5>
+            <p id="loadingText">Inicializando componentes...</p>
+        </div>
+    </div>
+
+    <!-- Mapa Principal -->
+    <div id="map"></div>
+</div>
+
+<!-- CSS Personalizado -->
+<style>
+.fullscreen-map-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+.map-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.control-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #333;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.control-btn:hover {
+    background: #007bff;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.control-btn.active {
+    background: #007bff;
+    color: white;
+}
+
+.info-panel, .layers-panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    backdrop-filter: blur(10px);
+    max-width: 300px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 15px;
+    margin: 15px 0;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.stat-label {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.layer-options, .overlay-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.layer-option, .overlay-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 5px;
+    transition: background 0.2s ease;
+}
+
+.layer-option:hover, .overlay-option:hover {
+    background: rgba(0,123,255,0.1);
+}
+
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loading-content {
+    text-align: center;
+    padding: 30px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .map-controls {
+        top: 10px;
+        right: 10px;
+        scale: 0.9;
+    }
+    
+    .info-panel, .layers-panel {
+        top: 10px;
+        left: 10px;
+        max-width: calc(100vw - 120px);
+    }
+    
+    .control-group {
+        flex-direction: row;
+    }
+}
+
+/* Estilos para popups customizados */
+.custom-popup {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.popup-header {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    padding: 10px 15px;
+    margin: -10px -15px 10px -15px;
+    border-radius: 5px 5px 0 0;
+    font-weight: bold;
+}
+
+.popup-content {
+    line-height: 1.6;
+}
+
+.popup-content strong {
+    color: #333;
+}
+
+/* Estilos para marcadores customizados */
+.custom-pole-marker {
+    background: white;
+    border: 3px solid;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: all 0.2s ease;
+}
+
+.custom-pole-marker:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.normal-pole-marker {
+    border-color: #28a745;
+    background: linear-gradient(135deg, #28a745, #20c997);
+}
+
+.defective-pole-marker {
+    border-color: #dc3545;
+    background: linear-gradient(135deg, #dc3545, #fd7e14);
+}
+
+.user-location-marker {
+    background: linear-gradient(135deg, #007bff, #6610f2);
+    border: 3px solid white;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(0, 123, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); }
+}
+</style>
+
+<!-- Leaflet CSS & JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Leaflet Clustering Plugin -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("[INIT] Iniciando aplicação do mapa...");
+    
+    // Configuração global
+    const CONFIG = {
+        defaultCenter: [-15.5989, -56.0949],
+        defaultZoom: 6,
+        maxZoom: 19,
+        minZoom: 3,
+        clusteringEnabled: true,
+        animationDuration: 1000
+    };
+
+    // Variáveis globais
+    let map = null;
+    let markersLayer = null;
+    let clusterGroup = null;
+    let currentBaseLayer = null;
+    let userLocationMarker = null;
+    let allMarkers = [];
+
+    // Dados dos postes com validação robusta
+    const postesData = [
+        {% for poste in postes %}
+        {
+            id: {{ poste.id|default:0 }},
+            numero: "{{ poste.numero|escapejs }}",
+            latitude: parseFloat("{{ poste.latitude|default:0 }}") || null,
+            longitude: parseFloat("{{ poste.longitude|default:0 }}") || null,
+            endereco: "{{ poste.endereco|escapejs|default:'Não disponível' }}",
+            cidade: "{{ poste.cidade|escapejs|default:'Não disponível' }}",
+            estado: "{{ poste.estado|escapejs|default:'Não disponível' }}",
+            pais: "{{ poste.pais|escapejs|default:'Brasil' }}",
+            defeito: {{ poste.defeito|yesno:"true,false" }},
+            data_criacao: "{{ poste.data_criacao|date:'d/m/Y H:i'|default:'Não disponível' }}"
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    console.log(`[DATA] Carregados ${postesData.length} postes:`, postesData);
+
+    // Inicialização principal
+    async function initializeMap() {
+        try {
+            updateLoadingText("Validando dados dos postes...");
+            
+            // Validar e filtrar postes
+            const validPostes = postesData.filter(poste => {
+                const isValid = poste.latitude && poste.longitude && 
+                               !isNaN(poste.latitude) && !isNaN(poste.longitude) &&
+                               poste.latitude >= -90 && poste.latitude <= 90 &&
+                               poste.longitude >= -180 && poste.longitude <= 180;
+                
+                if (!isValid) {
+                    console.warn(`[VALIDATION] Poste inválido:`, poste);
+                }
+                return isValid;
+            });
+
+            console.log(`[VALIDATION] ${validPostes.length}/${postesData.length} postes válidos`);
+
+            updateLoadingText("Inicializando mapa base...");
+            
+            // Criar mapa
+            map = L.map('map', {
+                zoomControl: false,
+                preferCanvas: true,
+                renderer: L.canvas({ padding: 0.5 }),
+                worldCopyJump: true,
+                maxBounds: [[-90, -180], [90, 180]],
+                maxBoundsViscosity: 1.0
+            });
+
+            // Configurar camadas base
+            setupBaseLayers();
+            
+            updateLoadingText("Criando marcadores...");
+            
+            // Criar marcadores
+            await createMarkers(validPostes);
+            
+            updateLoadingText("Configurando controles...");
+            
+            // Configurar controles e eventos
+            setupControls();
+            setupEventListeners();
+            
+            updateLoadingText("Centralizando visualização...");
+            
+            // Centralizar mapa
+            centerMapOnAllPoles();
+            
+            // Atualizar estatísticas
+            updateStatistics();
+            
+            updateLoadingText("Finalizando...");
+            
+            // Finalizar carregamento
+            setTimeout(() => {
+                hideLoading();
+                console.log("[SUCCESS] Mapa inicializado com sucesso!");
+            }, 500);
+
+        } catch (error) {
+            console.error("[ERROR] Erro na inicialização:", error);
+            showError("Erro ao carregar o mapa. Recarregue a página.");
+        }
+    }
+
+    function updateLoadingText(text) {
+        document.getElementById('loadingText').textContent = text;
+    }
+
+    function hideLoading() {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    function showError(message) {
+        document.getElementById('loadingOverlay').innerHTML = `
+            <div class="loading-content">
+                <i class="bi bi-exclamation-triangle text-danger" style="font-size: 48px;"></i>
+                <h5 class="text-danger mt-3">Erro</h5>
+                <p>${message}</p>
+                <button class="btn btn-primary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Recarregar
+                </button>
+            </div>
+        `;
+    }
+
+    function setupBaseLayers() {
+        // OpenStreetMap
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: CONFIG.maxZoom,
+            detectRetina: true
+        });
+
+        // Satélite (Esri)
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© <a href="https://www.esri.com/">Esri</a>',
+            maxZoom: CONFIG.maxZoom
+        });
+
+        // Terreno (OpenTopoMap)
+        const terrainLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://opentopomap.org/">OpenTopoMap</a>',
+            maxZoom: 17
+        });
+
+        // Adicionar camada padrão
+        currentBaseLayer = osmLayer;
+        osmLayer.addTo(map);
+
+        // Armazenar referências
+        window.mapLayers = {
+            osm: osmLayer,
+            satellite: satelliteLayer,
+            terrain: terrainLayer
+        };
+    }
+
+    async function createMarkers(postes) {
+        // Criar grupo de clusters
+        clusterGroup = L.markerClusterGroup({
+            chunkedLoading: true,
+            chunkProgress: (processed, total) => {
+                updateLoadingText(`Processando marcadores: ${processed}/${total}`);
+            },
+            maxClusterRadius: 50,
+            spiderfyOnMaxZoom: true,
+            showCoverageOnHover: false,
+            zoomToBoundsOnClick: true
+        });
+
+        // Criar grupo de marcadores simples
+        markersLayer = L.layerGroup();
+
+        // Ícones customizados modernos usando divIcon
+        const normalIcon = L.divIcon({
+            className: 'custom-pole-marker normal-pole-marker',
+            html: '<i class="bi bi-lightning-charge-fill" style="color: white; font-size: 18px;"></i>',
+            iconSize: [36, 36],
+            iconAnchor: [18, 36],
+            popupAnchor: [0, -36]
+        });
+
+        const defectiveIcon = L.divIcon({
+            className: 'custom-pole-marker defective-pole-marker',
+            html: '<i class="bi bi-exclamation-triangle-fill" style="color: white; font-size: 16px;"></i>',
+            iconSize: [36, 36],
+            iconAnchor: [18, 36],
+            popupAnchor: [0, -36]
+        });
+
+        // Criar marcadores
+        for (const poste of postes) {
+            try {
+                const icon = poste.defeito ? defectiveIcon : normalIcon;
+                
+                const marker = L.marker([poste.latitude, poste.longitude], { 
+                    icon: icon,
+                    title: `Poste ${poste.numero}`
+                });
+
+                // Popup customizado
+                const popupContent = createPopupContent(poste);
+                marker.bindPopup(popupContent, {
+                    maxWidth: 300,
+                    className: 'custom-popup'
+                });
+
+                // Adicionar aos grupos
+                clusterGroup.addLayer(marker);
+                markersLayer.addLayer(marker);
+                allMarkers.push({ marker, data: poste });
+
+            } catch (error) {
+                console.error(`[ERROR] Erro ao criar marcador para poste ${poste.numero}:`, error);
+            }
+        }
+
+        // Adicionar ao mapa (clusters por padrão)
+        if (CONFIG.clusteringEnabled) {
+            map.addLayer(clusterGroup);
+        } else {
+            map.addLayer(markersLayer);
+        }
+
+        console.log(`[MARKERS] ${allMarkers.length} marcadores criados`);
+    }
+
+    function createPopupContent(poste) {
+        const statusClass = poste.defeito ? 'text-danger' : 'text-success';
+        const statusIcon = poste.defeito ? 'bi-exclamation-triangle-fill' : 'bi-check-circle-fill';
+        const statusText = poste.defeito ? 'Com Defeito' : 'Funcionando';
+
+        return `
+            <div class="popup-header">
+                <i class="bi bi-lightning-charge-fill me-2"></i>Poste ${poste.numero}
+            </div>
+            <div class="popup-content">
+                <div class="mb-2">
+                    <i class="${statusIcon} ${statusClass} me-2"></i>
+                    <strong class="${statusClass}">${statusText}</strong>
+                </div>
+                <div class="mb-1">
+                    <strong>Coordenadas:</strong><br>
+                    <small class="text-muted">
+                        ${poste.latitude.toFixed(6)}, ${poste.longitude.toFixed(6)}
+                    </small>
+                </div>
+                <div class="mb-1">
+                    <strong>Endereço:</strong><br>
+                    <small>${poste.endereco}</small>
+                </div>
+                <div class="mb-1">
+                    <strong>Localização:</strong><br>
+                    <small>${poste.cidade}, ${poste.estado}</small>
+                </div>
+                <div class="mb-2">
+                    <strong>Cadastrado em:</strong><br>
+                    <small class="text-muted">${poste.data_criacao}</small>
+                </div>
+                <div class="text-center">
+                    <button class="btn btn-sm btn-outline-primary" onclick="openInGoogleMaps(${poste.latitude}, ${poste.longitude})">
+                        <i class="bi bi-map me-1"></i>Ver no Google Maps
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function setupControls() {
+        // Zoom
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            map.zoomIn();
+        });
+
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            map.zoomOut();
+        });
+
+        // Centralizar todos os postes
+        document.getElementById('center-all').addEventListener('click', centerMapOnAllPoles);
+
+        // Localização do usuário
+        document.getElementById('locate-me').addEventListener('click', getUserLocation);
+
+        // Toggle clusters
+        document.getElementById('toggle-clusters').addEventListener('click', toggleClustering);
+
+        // Tela cheia
+        document.getElementById('toggle-fullscreen').addEventListener('click', toggleFullscreen);
+
+        // Painéis
+        document.getElementById('toggle-info').addEventListener('click', toggleInfoPanel);
+        document.getElementById('toggle-layers').addEventListener('click', toggleLayersPanel);
+
+        // Mudança de camadas
+        document.querySelectorAll('input[name="baseLayer"]').forEach(radio => {
+            radio.addEventListener('change', changeBaseLayer);
+        });
+
+        // Filtros de overlay
+        document.getElementById('showDefectivePoles').addEventListener('change', updateMarkerVisibility);
+        document.getElementById('showNormalPoles').addEventListener('change', updateMarkerVisibility);
+    }
+
+    function setupEventListeners() {
+        // Redimensionamento
+        window.addEventListener('resize', () => {
+            setTimeout(() => {
+                map.invalidateSize();
+                updateStatistics();
+            }, 100);
+        });
+
+        // Eventos do mapa
+        map.on('moveend zoomend', updateStatistics);
+        
+        // Tela cheia
+        document.addEventListener('fullscreenchange', () => {
+            setTimeout(() => map.invalidateSize(), 100);
+        });
+    }
+
+    function centerMapOnAllPoles() {
+        if (allMarkers.length === 0) {
+            console.warn("[WARNING] Nenhum marcador para centralizar");
+            return;
+        }
+
+        try {
+            const bounds = L.latLngBounds(allMarkers.map(m => m.marker.getLatLng()));
+            
+            // Adicionar padding para melhor visualização
+            const paddingOptions = {
+                padding: [50, 50],
+                maxZoom: 15
+            };
+
+            map.fitBounds(bounds, paddingOptions);
+            
+            console.log("[CENTER] Mapa centralizado em todos os postes");
+        } catch (error) {
+            console.error("[ERROR] Erro ao centralizar mapa:", error);
+            map.setView(CONFIG.defaultCenter, CONFIG.defaultZoom);
+        }
+    }
+
+    function getUserLocation() {
+        if (!navigator.geolocation) {
+            alert('Geolocalização não suportada pelo navegador');
+            return;
+        }
+
+        const button = document.getElementById('locate-me');
+        button.innerHTML = '<i class="bi bi-arrow-clockwise"></i>';
+        button.disabled = true;
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                
+                // Remover marcador anterior
+                if (userLocationMarker) {
+                    map.removeLayer(userLocationMarker);
+                }
+
+                // Criar novo marcador
+                userLocationMarker = L.marker([latitude, longitude], {
+                    icon: L.divIcon({
+                        className: 'user-location-marker',
+                        html: '<i class="bi bi-person-fill" style="color: white; font-size: 16px;"></i>',
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 32]
+                    })
+                }).addTo(map);
+
+                userLocationMarker.bindPopup(`
+                    <div class="text-center">
+                        <i class="bi bi-person-circle text-primary" style="font-size: 24px;"></i>
+                        <h6 class="mt-2">Sua Localização</h6>
+                        <small class="text-muted">
+                            ${latitude.toFixed(6)}, ${longitude.toFixed(6)}
+                        </small>
+                    </div>
+                `).openPopup();
+
+                map.setView([latitude, longitude], 15);
+
+                button.innerHTML = '<i class="bi bi-geo-alt-fill"></i>';
+                button.disabled = false;
+            },
+            (error) => {
+                console.error("[ERROR] Erro de geolocalização:", error);
+                alert(`Erro: ${error.message}`);
+                
+                button.innerHTML = '<i class="bi bi-geo-alt-fill"></i>';
+                button.disabled = false;
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000
+            }
+        );
+    }
+
+    function toggleClustering() {
+        const button = document.getElementById('toggle-clusters');
+        
+        if (CONFIG.clusteringEnabled) {
+            // Desabilitar clustering
+            map.removeLayer(clusterGroup);
+            map.addLayer(markersLayer);
+            button.classList.remove('active');
+            CONFIG.clusteringEnabled = false;
+        } else {
+            // Habilitar clustering
+            map.removeLayer(markersLayer);
+            map.addLayer(clusterGroup);
+            button.classList.add('active');
+            CONFIG.clusteringEnabled = true;
+        }
+    }
+
+    function toggleFullscreen() {
+        const container = document.querySelector('.fullscreen-map-container');
+        
+        if (!document.fullscreenElement) {
+            container.requestFullscreen().catch(err => {
+                console.error("[ERROR] Erro ao entrar em tela cheia:", err);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function toggleInfoPanel() {
+        const panel = document.getElementById('infoPanel');
+        const button = document.getElementById('toggle-info');
+        
+        if (panel.style.display === 'none') {
+            panel.style.display = 'block';
+            button.classList.add('active');
+            updateStatistics();
+        } else {
+            panel.style.display = 'none';
+            button.classList.remove('active');
+        }
+    }
+
+    function toggleLayersPanel() {
+        const panel = document.getElementById('layersPanel');
+        const button = document.getElementById('toggle-layers');
+        
+        if (panel.style.display === 'none') {
+            panel.style.display = 'block';
+            button.classList.add('active');
+        } else {
+            panel.style.display = 'none';
+            button.classList.remove('active');
+        }
+    }
+
+    function changeBaseLayer(event) {
+        const layerName = event.target.value;
+        const newLayer = window.mapLayers[layerName];
+        
+        if (newLayer && currentBaseLayer !== newLayer) {
+            map.removeLayer(currentBaseLayer);
+            map.addLayer(newLayer);
+            currentBaseLayer = newLayer;
+            
+            console.log(`[LAYER] Camada alterada para: ${layerName}`);
+        }
+    }
+
+    function updateMarkerVisibility() {
+        const showDefective = document.getElementById('showDefectivePoles').checked;
+        const showNormal = document.getElementById('showNormalPoles').checked;
+
+        allMarkers.forEach(({ marker, data }) => {
+            const shouldShow = (data.defeito && showDefective) || (!data.defeito && showNormal);
+            
+            if (shouldShow) {
+                if (CONFIG.clusteringEnabled) {
+                    clusterGroup.addLayer(marker);
+                } else {
+                    markersLayer.addLayer(marker);
+                }
+            } else {
+                if (CONFIG.clusteringEnabled) {
+                    clusterGroup.removeLayer(marker);
+                } else {
+                    markersLayer.removeLayer(marker);
+                }
+            }
+        });
+
+        updateStatistics();
+    }
+
+    function updateStatistics() {
+        const bounds = map.getBounds();
+        const visibleMarkers = allMarkers.filter(({ marker }) => {
+            return bounds.contains(marker.getLatLng());
+        });
+
+        // Calcular área aproximada
+        const area = calculateArea(bounds);
+
+        document.getElementById('totalPostes').textContent = allMarkers.length;
+        document.getElementById('postesVisiveis').textContent = visibleMarkers.length;
+        document.getElementById('areaCobertura').textContent = area.toFixed(1);
+    }
+
+    function calculateArea(bounds) {
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        
+        // Aproximação simples da área em km²
+        const latDiff = ne.lat - sw.lat;
+        const lngDiff = ne.lng - sw.lng;
+        
+        // Conversão aproximada para km²
+        const kmPerDegree = 111;
+        return Math.abs(latDiff * lngDiff * kmPerDegree * kmPerDegree);
+    }
+
+    // Funções globais
+    window.openInGoogleMaps = function(lat, lng) {
+        const url = `https://www.google.com/maps?q=${lat},${lng}`;
+        window.open(url, '_blank');
+    };
+
+    window.toggleInfoPanel = function() {
+        toggleInfoPanel();
+    };
+
+    // Inicializar aplicação
+    initializeMap();
+});
+</script>
+{% endblock %}

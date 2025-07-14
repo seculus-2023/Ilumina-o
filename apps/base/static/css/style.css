@@ -1,0 +1,83 @@
+/* static/css/style.css */
+body {
+    background-image: url('/static/img/logoSgiip.png');
+    background-size: cover; /* cobre toda a área */
+    background-position: center; /* centraliza a imagem */
+    background-repeat: no-repeat; /* evite repetição */
+    background-attachment: fixed; /* fixa o background ao rolar */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+.form-control {
+    margin-bottom: 15px;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.text-reset {
+    color: inherit;
+    text-decoration: none;
+}
+
+.text-reset:hover {
+    text-decoration: underline;
+}
+.navbar {
+    background-color: rgba(13, 110, 253, 0.9) !important;
+    position: absolute;
+    width: 100%;
+    z-index: 1000;
+}
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+button:hover {
+    background-color: #45a049;
+}
+#result {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+}
+#manualCoordsForm {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+    border: 1px solid #dee2e6;
+}
+
+#manualCoordsForm h5 {
+    margin-bottom: 15px;
+    color: #495057;
+}
+ @media (max-width: 768px) {
+    .modal-content {
+      width: 90% !important;
+      margin: 20% auto !important;
+    }
+    
+    #locationPermissionModal {
+      font-size: 16px;
+    }
+    
+    #allowLocation, #denyLocation {
+      padding: 12px;
+      font-size: 16px;
+    }
+    
+    #manualCoordsForm input {
+      font-size: 16px;
+      padding: 12px;
+    }
+  }

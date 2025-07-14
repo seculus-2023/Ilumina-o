@@ -1,0 +1,567 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Registrar Poste{% endblock %}
+
+{% block content %}
+{% include 'navbar.html' %}
+
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="card p-4" style="width: 90%; max-width: 500px;">
+        <h4 class="text-center mb-4">Registrar Poste</h4>
+
+        <!-- Modal de Permissão de Localização -->
+        <div id="locationPermissionModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000;">
+            <div class="modal-content" style="background: white; margin: 10% auto; padding: 30px; width: 90%; max-width: 450px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                <div class="text-center">
+                    <div style="font-size: 48px; color: #007bff; margin-bottom: 20px;">📍</div>
+                    <h5 class="mb-3">Localização Necessária</h5>
+                    <p class="text-muted mb-4">Para registrar o poste com precisão, precisamos acessar sua localização atual.</p>
+                    
+                    <button id="allowLocation" class="btn btn-primary w-100 mb-3" style="padding: 12px;">
+                        <i class="fas fa-map-marker-alt me-2"></i>Permitir Localização Automática
+                    </button>
+                    
+                    <button id="useIPLocation" class="btn btn-outline-info w-100 mb-3" style="padding: 12px;">
+                        <i class="fas fa-globe me-2"></i>Usar Localização por IP
+                    </button>
+                    
+                    <button id="manualLocation" class="btn btn-outline-secondary w-100" style="padding: 12px;">
+                        <i class="fas fa-edit me-2"></i>Inserir Coordenadas Manualmente
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulário Principal -->
+        <div id="posteForm" style="display: none;">
+            <div class="mb-3">
+                <label for="numeroPoste" class="form-label fw-bold">Número do Poste:</label>
+                <input type="text" class="form-control" id="numeroPoste" placeholder="Ex: P-001, Poste-123" required>
+                <small class="text-muted">Identificação única do poste</small>
+            </div>
+
+            <div class="mb-3">
+                <label for="fotoPoste" class="form-label fw-bold">Foto do Poste:</label>
+                <input type="file" class="form-control" id="fotoPoste" accept="image/*" capture="environment">
+                <small class="text-muted">Use a câmera para fotografar o poste</small>
+                <div id="fotoPreview" class="mt-2" style="display: none;">
+                    <img id="previewImage" style="max-width: 100%; max-height: 200px; border-radius: 5px;" alt="Preview da foto">
+                </div>
+            </div>
+
+            <!-- Status da Localização -->
+            <div id="locationStatus" class="alert alert-info" style="display: none;">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    <span id="locationStatusText">Obtendo localização...</span>
+                </div>
+            </div>
+
+            <!-- Coordenadas Obtidas -->
+            <div id="coordenadasObtidas" class="alert alert-success" style="display: none;">
+                <h6 class="mb-2"><i class="fas fa-check-circle me-2"></i>Localização Obtida:</h6>
+                <small>
+                    <strong>Lat:</strong> <span id="latObtida"></span><br>
+                    <strong>Lng:</strong> <span id="lngObtida"></span><br>
+                    <strong>Método:</strong> <span id="metodoObtido"></span>
+                </small>
+            </div>
+
+            <button id="confirmarPoste" class="btn btn-primary w-100" style="padding: 12px;" disabled>
+                <i class="fas fa-save me-2"></i>Confirmar e Processar
+            </button>
+        </div>
+
+        <!-- Formulário Manual de Coordenadas -->
+        <div id="manualCoordsForm" style="display: none;">
+            <h5 class="mb-3"><i class="fas fa-map me-2"></i>Coordenadas Manuais</h5>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="inputLatitude" class="form-label">Latitude:</label>
+                    <input type="number" step="any" class="form-control" id="inputLatitude" placeholder="-15.5989">
+                    <small class="text-muted">-90 a 90</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="inputLongitude" class="form-label">Longitude:</label>
+                    <input type="number" step="any" class="form-control" id="inputLongitude" placeholder="-56.0949">
+                    <small class="text-muted">-180 a 180</small>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <button id="getCurrentLocationBtn" class="btn btn-outline-primary w-100 mb-2">
+                    <i class="fas fa-crosshairs me-2"></i>Tentar Obter Localização Atual
+                </button>
+                <small class="text-muted d-block text-center">ou insira as coordenadas manualmente acima</small>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button id="confirmManualCoords" class="btn btn-success">
+                    <i class="fas fa-check me-2"></i>Confirmar Coordenadas
+                </button>
+                <button id="cancelManualCoords" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="text-center mt-3" style="display: none">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p id="loadingText">Processando dados...</p>
+            <small class="text-muted" id="loadingSubtext">Obtendo informações de endereço...</small>
+        </div>
+
+        <!-- Preview dos Dados -->
+        <div id="dadosPreview" class="mt-3" style="display: none">
+            <h5 class="mb-3"><i class="fas fa-eye me-2"></i>Confirmar Dados:</h5>
+            
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Número:</strong> <span id="previewNumero" class="text-primary"></span></p>
+                            <p><strong>Latitude:</strong> <span id="previewLatitude"></span></p>
+                            <p><strong>Longitude:</strong> <span id="previewLongitude"></span></p>
+                            <p><strong>Endereço:</strong> <span id="previewEndereco"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Cidade:</strong> <span id="previewCidade"></span></p>
+                            <p><strong>Estado:</strong> <span id="previewEstado"></span></p>
+                            <p><strong>País:</strong> <span id="previewPais"></span></p>
+                            <p><strong>Método:</strong> <span id="previewMetodo" class="badge bg-info"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-3">
+                        <img id="previewFoto" style="max-width: 100%; max-height: 200px; border-radius: 5px;" alt="Foto do poste">
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2 mt-3">
+                <button id="confirmarEnvio" class="btn btn-success btn-lg">
+                    <i class="fas fa-paper-plane me-2"></i>Confirmar e Enviar
+                </button>
+                <button id="cancelarEnvio" class="btn btn-outline-secondary">
+                    <i class="fas fa-edit me-2"></i>Editar Dados
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Variáveis globais
+    let numeroPoste = null;
+    let userLatitude = null;
+    let userLongitude = null;
+    let userAddress = null;
+    let fotoPoste = null;
+    let locationMethod = null;
+    let locationPermissionGranted = false;
+
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', function() {
+        showLocationModal();
+        setupEventListeners();
+    });
+
+    function setupEventListeners() {
+        // Modal de localização
+        document.getElementById('allowLocation').addEventListener('click', handleAllowLocation);
+        document.getElementById('useIPLocation').addEventListener('click', handleIPLocation);
+        document.getElementById('manualLocation').addEventListener('click', handleManualLocation);
+
+        // Formulário principal
+        document.getElementById('fotoPoste').addEventListener('change', handleFotoChange);
+        document.getElementById('confirmarPoste').addEventListener('click', handleConfirmPoste);
+
+        // Coordenadas manuais
+        document.getElementById('confirmManualCoords').addEventListener('click', handleConfirmManualCoords);
+        document.getElementById('cancelManualCoords').addEventListener('click', handleCancelManualCoords);
+        document.getElementById('getCurrentLocationBtn').addEventListener('click', handleGetCurrentLocation);
+
+        // Preview
+        document.getElementById('confirmarEnvio').addEventListener('click', handleConfirmSend);
+        document.getElementById('cancelarEnvio').addEventListener('click', handleCancelSend);
+
+        // Validação em tempo real
+        document.getElementById('numeroPoste').addEventListener('input', validateForm);
+    }
+
+    function showLocationModal() {
+        document.getElementById('locationPermissionModal').style.display = 'block';
+    }
+
+    function hideLocationModal() {
+        document.getElementById('locationPermissionModal').style.display = 'none';
+    }
+
+    // Estratégia 1: Geolocalização HTML5 com configurações otimizadas
+    async function handleAllowLocation() {
+        if (!navigator.geolocation) {
+            alert("Geolocalização não suportada. Tentando método alternativo...");
+            await handleIPLocation();
+            return;
+        }
+
+        showLocationStatus("Obtendo localização GPS...", "Aguarde enquanto acessamos sua localização precisa");
+
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+        };
+
+        try {
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, options);
+            });
+
+            userLatitude = position.coords.latitude;
+            userLongitude = position.coords.longitude;
+            locationMethod = `GPS (±${Math.round(position.coords.accuracy)}m)`;
+            locationPermissionGranted = true;
+
+            showLocationSuccess();
+            hideLocationModal();
+            showPosteForm();
+
+        } catch (error) {
+            console.error('Erro GPS:', error);
+            
+            // Fallback automático para IP
+            showLocationStatus("GPS falhou, tentando localização por IP...", "Método alternativo em andamento");
+            
+            setTimeout(async () => {
+                await handleIPLocation();
+            }, 1000);
+        }
+    }
+
+    // Estratégia 2: Localização por IP (múltiplos serviços)
+    async function handleIPLocation() {
+        showLocationStatus("Obtendo localização por IP...", "Usando sua conexão de internet");
+
+        const ipServices = [
+            {
+                url: 'https://ipapi.co/json/',
+                parser: (data) => ({
+                    lat: data.latitude,
+                    lng: data.longitude,
+                    city: data.city,
+                    region: data.region,
+                    country: data.country_name
+                })
+            },
+            {
+                url: 'http://ip-api.com/json/',
+                parser: (data) => ({
+                    lat: data.lat,
+                    lng: data.lon,
+                    city: data.city,
+                    region: data.regionName,
+                    country: data.country
+                })
+            },
+            {
+                url: 'https://ipinfo.io/json',
+                parser: (data) => {
+                    const [lat, lng] = data.loc.split(',');
+                    return {
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lng),
+                        city: data.city,
+                        region: data.region,
+                        country: data.country
+                    };
+                }
+            }
+        ];
+
+        for (const service of ipServices) {
+            try {
+                const response = await fetch(service.url, { timeout: 8000 });
+                const data = await response.json();
+                const parsed = service.parser(data);
+
+                if (parsed.lat && parsed.lng) {
+                    userLatitude = parsed.lat;
+                    userLongitude = parsed.lng;
+                    locationMethod = "Localização por IP";
+                    locationPermissionGranted = true;
+
+                    showLocationSuccess();
+                    hideLocationModal();
+                    showPosteForm();
+                    return;
+                }
+            } catch (error) {
+                console.error(`Erro no serviço ${service.url}:`, error);
+                continue;
+            }
+        }
+
+        // Se todos os serviços falharam
+        alert("Não foi possível obter localização automaticamente. Use a opção manual.");
+        handleManualLocation();
+    }
+
+    // Estratégia 3: Coordenadas manuais
+    function handleManualLocation() {
+        hideLocationModal();
+        document.getElementById('manualCoordsForm').style.display = 'block';
+    }
+
+    function handleGetCurrentLocation() {
+        handleAllowLocation();
+    }
+
+    function handleConfirmManualCoords() {
+        const lat = parseFloat(document.getElementById('inputLatitude').value);
+        const lng = parseFloat(document.getElementById('inputLongitude').value);
+
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            alert("Coordenadas inválidas! Latitude: -90 a 90, Longitude: -180 a 180");
+            return;
+        }
+
+        userLatitude = lat;
+        userLongitude = lng;
+        locationMethod = "Inserção Manual";
+        locationPermissionGranted = true;
+
+        document.getElementById('manualCoordsForm').style.display = 'none';
+        showPosteForm();
+        showLocationSuccess();
+    }
+
+    function handleCancelManualCoords() {
+        document.getElementById('manualCoordsForm').style.display = 'none';
+        showLocationModal();
+    }
+
+    function showLocationStatus(text, subtext = "") {
+        const status = document.getElementById('locationStatus');
+        document.getElementById('locationStatusText').textContent = text;
+        status.style.display = 'block';
+        
+        if (document.getElementById('posteForm').style.display === 'block') {
+            // Já está no formulário, apenas atualiza status
+        }
+    }
+
+    function showLocationSuccess() {
+        document.getElementById('locationStatus').style.display = 'none';
+        
+        const success = document.getElementById('coordenadasObtidas');
+        document.getElementById('latObtida').textContent = userLatitude.toFixed(6);
+        document.getElementById('lngObtida').textContent = userLongitude.toFixed(6);
+        document.getElementById('metodoObtido').textContent = locationMethod;
+        success.style.display = 'block';
+        
+        validateForm();
+    }
+
+    function showPosteForm() {
+        document.getElementById('posteForm').style.display = 'block';
+        validateForm();
+    }
+
+    function handleFotoChange(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Validar tamanho (máximo 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                alert("Arquivo muito grande! Máximo 5MB.");
+                e.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                fotoPoste = event.target.result;
+                
+                // Mostrar preview
+                document.getElementById('previewImage').src = fotoPoste;
+                document.getElementById('fotoPreview').style.display = 'block';
+                
+                validateForm();
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function validateForm() {
+        const numero = document.getElementById('numeroPoste').value.trim();
+        const hasLocation = locationPermissionGranted && userLatitude && userLongitude;
+        const hasFoto = fotoPoste;
+
+        const isValid = numero && hasLocation && hasFoto;
+        document.getElementById('confirmarPoste').disabled = !isValid;
+    }
+
+    async function handleConfirmPoste() {
+        numeroPoste = document.getElementById('numeroPoste').value.trim();
+
+        document.getElementById('posteForm').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        
+        document.getElementById('loadingText').textContent = 'Obtendo informações de endereço...';
+        document.getElementById('loadingSubtext').textContent = 'Processando localização';
+
+        try {
+            await fetchAddressAndShowPreview();
+        } catch (error) {
+            console.error('Erro:', error);
+            alert('Erro ao processar dados. Tente novamente.');
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('posteForm').style.display = 'block';
+        }
+    }
+
+    async function fetchAddressAndShowPreview() {
+        userAddress = await getAddress(userLatitude, userLongitude);
+        
+        const dadosPoste = {
+            numero: numeroPoste,
+            latitude: userLatitude,
+            longitude: userLongitude,
+            endereco: userAddress?.endereco || "Não disponível",
+            cidade: userAddress?.cidade || "Não disponível",
+            estado: userAddress?.estado || "Não disponível",
+            pais: userAddress?.pais || "Brasil",
+            foto: fotoPoste,
+            metodo: locationMethod
+        };
+
+        // Preencher preview
+        document.getElementById('previewNumero').textContent = dadosPoste.numero;
+        document.getElementById('previewLatitude').textContent = dadosPoste.latitude.toFixed(6);
+        document.getElementById('previewLongitude').textContent = dadosPoste.longitude.toFixed(6);
+        document.getElementById('previewEndereco').textContent = dadosPoste.endereco;
+        document.getElementById('previewCidade').textContent = dadosPoste.cidade;
+        document.getElementById('previewEstado').textContent = dadosPoste.estado;
+        document.getElementById('previewPais').textContent = dadosPoste.pais;
+        document.getElementById('previewMetodo').textContent = dadosPoste.metodo;
+        document.getElementById('previewFoto').src = dadosPoste.foto;
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('dadosPreview').style.display = 'block';
+    }
+
+    async function getAddress(latitude, longitude) {
+        const services = [
+            {
+                url: `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+                headers: { 'User-Agent': 'PosteApp/1.0' },
+                parser: (data) => ({
+                    endereco: `${data.address?.road || ''} ${data.address?.house_number || ''}`.trim() || "Não disponível",
+                    cidade: data.address?.city || data.address?.town || data.address?.village || "Não disponível",
+                    estado: data.address?.state || "Não disponível",
+                    pais: data.address?.country || "Brasil"
+                })
+            },
+            {
+                url: `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=pt`,
+                parser: (data) => ({
+                    endereco: data.locality || "Não disponível",
+                    cidade: data.city || data.locality || "Não disponível",
+                    estado: data.principalSubdivision || "Não disponível",
+                    pais: data.countryName || "Brasil"
+                })
+            }
+        ];
+
+        for (const service of services) {
+            try {
+                const response = await fetch(service.url, {
+                    headers: service.headers || {},
+                    timeout: 8000
+                });
+                
+                if (!response.ok) continue;
+                
+                const data = await response.json();
+                return service.parser(data);
+                
+            } catch (error) {
+                console.error(`Erro no geocoding:`, error);
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    async function handleConfirmSend() {
+        const dadosPoste = {
+            numero: numeroPoste,
+            latitude: userLatitude,
+            longitude: userLongitude,
+            endereco: userAddress?.endereco || "Não disponível",
+            cidade: userAddress?.cidade || "Não disponível",
+            estado: userAddress?.estado || "Não disponível",
+            pais: userAddress?.pais || "Brasil",
+            foto: fotoPoste
+        };
+
+        try {
+            document.getElementById('confirmarEnvio').disabled = true;
+            document.getElementById('confirmarEnvio').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enviando...';
+
+            const response = await fetch('/registrar_poste/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(dadosPoste)
+            });
+
+            if (response.ok) {
+                alert('✅ Poste registrado com sucesso!');
+                window.location.href = '/latitude/';
+            } else {
+                throw new Error(`Erro ${response.status}: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Erro no envio:', error);
+            alert('❌ Erro ao enviar dados. Verifique a conexão e tente novamente.');
+            
+            document.getElementById('confirmarEnvio').disabled = false;
+            document.getElementById('confirmarEnvio').innerHTML = '<i class="fas fa-paper-plane me-2"></i>Confirmar e Enviar';
+        }
+    }
+
+    function handleCancelSend() {
+        document.getElementById('dadosPreview').style.display = 'none';
+        document.getElementById('posteForm').style.display = 'block';
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+</script>
+
+<!-- Font Awesome para ícones -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+{% endblock %}
